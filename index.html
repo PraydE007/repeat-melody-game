@@ -412,7 +412,7 @@
     for (let i = 0; i < melody.length; i++) {
       const idx = melody[i];
       const k = keyboard[idx];
-      flashKey(idx, litClass(k.isBlack), Math.min(settings.delayMs * 0.85, 500));
+      // flashKey(idx, litClass(k.isBlack), Math.min(settings.delayMs * 0.85, 500));
       playTone(k.freq);
       await sleep(settings.delayMs);
     }
