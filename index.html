@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Луна — повтори мелодію</title>
+<meta name="description" content="Музична гра на пам'ять: прослухай мелодію і повтори її на піаніно." />
+
+<!-- Tailwind (CDN, no build step needed) -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          stage:   '#0f0e17',
+          stage2:  '#17151f',
+          ivory:   '#f6f1e6',
+          ink:     '#171622',
+          gold:    '#d4af37',
+          goldSoft:'#e8cc7a',
+          ok:      '#7fb77e',
+          bad:     '#c65146',
+        },
+        fontFamily: {
+          display: ['"Cormorant Garamond"', 'serif'],
+          body: ['Inter', 'sans-serif'],
+          mono: ['"JetBrains Mono"', 'monospace'],
+        },
+      }
+    }
+  }
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+
+<style>
+  html, body { background: #0f0e17; }
+  .font-display { font-family: 'Cormorant Garamond', serif; }
+
+  /* Staff-line signature motif */
+  .staff {
+    height: 46px;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 8px,
+      rgba(212,175,55,0.35) 8px,
+      rgba(212,175,55,0.35) 9px,
+      transparent 9px,
+      transparent 18px
+    );
+  }
+  .staff-note {
+    transition: transform 900ms cubic-bezier(.22,.8,.28,1), opacity 900ms ease;
+  }
+
+  /* Piano key base */
+  .key-white {
+    background: linear-gradient(180deg, #fffdf8 0%, #f6f1e6 65%, #e9e2d0 100%);
+    border: 1px solid #cfc6ac;
+    box-shadow: inset 0 -6px 10px rgba(0,0,0,0.08);
+    transition: transform 80ms ease, box-shadow 120ms ease, background 150ms ease;
+  }
+  .key-white:active, .key-white.pressed {
+    transform: translateY(3px);
+    box-shadow: inset 0 -2px 4px rgba(0,0,0,0.15);
+  }
+  .key-black {
+    background: linear-gradient(180deg, #2a2833 0%, #171622 70%);
+    box-shadow: inset 0 -6px 10px rgba(0,0,0,0.5), 0 4px 6px rgba(0,0,0,0.4);
+    transition: transform 80ms ease, box-shadow 120ms ease, background 150ms ease;
+  }
+  .key-black:active, .key-black.pressed {
+    transform: translateY(2px);
+  }
+
+  .key-lit-white { background: linear-gradient(180deg, #fff7d9 0%, #f3dfa0 70%, #e3c877 100%) !important; }
+  .key-lit-black { background: linear-gradient(180deg, #6a5a24 0%, #4a3d18 100%) !important; }
+
+  .key-ok-white   { background: linear-gradient(180deg, #eef7ee 0%, #bfe0be 100%) !important; }
+  .key-ok-black   { background: linear-gradient(180deg, #3a5a3a 0%, #24391f 100%) !important; }
+  .key-bad-white  { background: linear-gradient(180deg, #f9e6e3 0%, #e7b3ac 100%) !important; }
+  .key-bad-black  { background: linear-gradient(180deg, #5a2e28 0%, #3b1c18 100%) !important; }
+
+  .glow-ring {
+    position: absolute;
+    inset: -6px;
+    border-radius: 6px;
+    pointer-events: none;
+    opacity: 0;
+  }
+  .glow-ring.fire {
+    animation: ringpulse 550ms ease-out forwards;
+  }
+  @keyframes ringpulse {
+    0%   { box-shadow: 0 0 0 0 rgba(212,175,55,0.55); opacity: 1; }
+    100% { box-shadow: 0 0 0 14px rgba(212,175,55,0); opacity: 0; }
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: #35323f;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #d4af37;
+    cursor: pointer;
+    border: 2px solid #0f0e17;
+    margin-top: -6px;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #d4af37;
+    border: 2px solid #0f0e17;
+    cursor: pointer;
+  }
+
+  .spotlight {
+    background: radial-gradient(ellipse 60% 100% at 50% 0%, rgba(212,175,55,0.10), transparent 70%);
+  }
+
+  ::selection { background: #d4af37; color: #17151f; }
+</style>
+</head>
+
+<body class="bg-stage text-ivory font-body min-h-screen flex flex-col">
+
+<div class="spotlight fixed inset-0 pointer-events-none"></div>
+
+<!-- Header -->
+<header class="relative z-10 px-6 pt-10 pb-4 text-center">
+  <p class="tracking-[0.35em] text-xs text-gold/70 uppercase mb-2">музична пам'ять</p>
+  <h1 class="font-display italic text-5xl sm:text-6xl text-ivory leading-none">Луна</h1>
+  <p class="mt-2 text-sm text-ivory/50 max-w-md mx-auto">Прослухай мелодію — і повтори її на клавішах, поки відлуння не стихло.</p>
+</header>
+
+<!-- Staff divider with traveling note -->
+<div class="relative z-10 max-w-3xl w-full mx-auto px-6">
+  <div class="staff relative rounded">
+    <div id="staffNote" class="staff-note absolute top-1/2 -translate-y-1/2 left-0 w-2.5 h-2.5 rounded-full bg-gold opacity-0"></div>
+  </div>
+</div>
+
+<!-- Main stage -->
+<main class="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-8 gap-8 max-w-4xl w-full mx-auto">
+
+  <!-- Status row -->
+  <div class="w-full flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-6 font-mono text-sm text-ivory/70">
+      <div>РАХУНОК <span id="scoreVal" class="text-gold text-base">0</span></div>
+      <div>СЕРІЯ <span id="streakVal" class="text-gold text-base">0</span></div>
+    </div>
+    <div id="statusMsg" class="font-display italic text-lg text-goldSoft text-right min-h-[1.75rem]">Натисни «Слухати», щоб почати</div>
+  </div>
+
+  <!-- Piano -->
+  <div class="w-full">
+    <div id="piano" class="relative w-full h-40 sm:h-52 flex select-none rounded-b-lg overflow-visible shadow-2xl"></div>
+    <div class="h-2 bg-ink rounded-b-lg -mt-1 mx-1"></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="flex flex-wrap items-center justify-center gap-3">
+    <button id="playBtn"
+      class="px-7 py-3 rounded-full bg-gold text-ink font-semibold tracking-wide hover:bg-goldSoft transition shadow-lg shadow-gold/10">
+      ▸ Слухати мелодію
+    </button>
+    <button id="repeatBtn"
+      class="px-5 py-3 rounded-full border border-ivory/20 text-ivory/80 hover:border-gold/60 hover:text-gold transition">
+      ↺ Повторити
+    </button>
+    <button id="newGameBtn"
+      class="px-5 py-3 rounded-full border border-ivory/20 text-ivory/80 hover:border-gold/60 hover:text-gold transition">
+      Нова гра
+    </button>
+    <button id="settingsBtn"
+      class="px-5 py-3 rounded-full border border-ivory/20 text-ivory/80 hover:border-gold/60 hover:text-gold transition">
+      ⚙ Налаштування
+    </button>
+  </div>
+</main>
+
+<!-- Settings panel (overlay) -->
+<div id="settingsOverlay" class="fixed inset-0 z-30 bg-black/60 hidden items-center justify-center px-4">
+  <div class="bg-stage2 border border-ivory/10 rounded-2xl max-w-md w-full p-7 shadow-2xl">
+    <h2 class="font-display italic text-3xl text-goldSoft mb-1">Налаштування</h2>
+    <p class="text-ivory/40 text-sm mb-6">Зміни застосуються з наступною мелодією.</p>
+
+    <div class="space-y-6">
+      <div>
+        <div class="flex justify-between text-sm mb-2">
+          <label for="lenRange">Нот у мелодії</label>
+          <span id="lenVal" class="font-mono text-gold">5</span>
+        </div>
+        <input id="lenRange" type="range" min="3" max="16" value="5" class="w-full">
+      </div>
+
+      <div>
+        <div class="flex justify-between text-sm mb-2">
+          <label for="keysRange">Клавіш на піаніно</label>
+          <span id="keysVal" class="font-mono text-gold">8</span>
+        </div>
+        <input id="keysRange" type="range" min="5" max="18" value="8" class="w-full">
+      </div>
+
+      <div>
+        <div class="flex justify-between text-sm mb-2">
+          <label for="delayRange">Пауза між нотами</label>
+          <span id="delayVal" class="font-mono text-gold">500 мс</span>
+        </div>
+        <input id="delayRange" type="range" min="200" max="1200" step="50" value="500" class="w-full">
+      </div>
+    </div>
+
+    <div class="flex gap-3 mt-8">
+      <button id="applySettingsBtn" class="flex-1 py-3 rounded-full bg-gold text-ink font-semibold hover:bg-goldSoft transition">Застосувати</button>
+      <button id="closeSettingsBtn" class="px-5 py-3 rounded-full border border-ivory/20 text-ivory/70 hover:border-gold/50 transition">Скасувати</button>
+    </div>
+  </div>
+</div>
+
+<footer class="relative z-10 text-center text-ivory/25 text-xs pb-6 pt-2 font-mono">
+  зроблено для гри на слух · без збору даних, все локально
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- State ---------- */
+  const DEFAULTS = { melodyLength: 5, keysCount: 8, delayMs: 500 };
+  let settings = loadSettings();
+
+  let keyboard = [];       // [{midi, freq, isBlack, whiteIndex}]
+  let melody = [];         // array of key indices into `keyboard`
+  let playerStep = 0;
+  let isPlaying = false;   // true while melody is being played back (input locked)
+  let roundActive = false; // true once melody finished playing and player may answer
+  let score = 0;
+  let streak = 0;
+
+  /* ---------- Audio ---------- */
+  let audioCtx = null;
+  function ctx() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playTone(freq, duration = 0.55) {
+    const c = ctx();
+    const now = c.currentTime;
+
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.5, now + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    gain.connect(c.destination);
+
+    const osc1 = c.createOscillator();
+    osc1.type = 'triangle';
+    osc1.frequency.value = freq;
+    osc1.connect(gain);
+
+    const osc2 = c.createOscillator();
+    osc2.type = 'sine';
+    osc2.frequency.value = freq * 2.005;
+    const gain2 = c.createGain();
+    gain2.gain.value = 0.12;
+    osc2.connect(gain2);
+    gain2.connect(gain);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + duration + 0.05);
+    osc2.stop(now + duration + 0.05);
+  }
+
+  /* ---------- Keyboard construction ---------- */
+  // White-key semitone offsets from C within an octave, and whether a black key follows.
+  const WHITE_OFFSETS = [0, 2, 4, 5, 7, 9, 11];
+  const HAS_BLACK_AFTER = [true, true, false, true, true, true, false]; // C D E F G A B
+
+  function buildKeyboard(whiteCount) {
+    const keys = [];
+    for (let i = 0; i < whiteCount; i++) {
+      const octave = Math.floor(i / 7);
+      const degree = i % 7;
+      const midi = 60 + octave * 12 + WHITE_OFFSETS[degree];
+      keys.push({ midi, isBlack: false, whiteIndex: i });
+      if (HAS_BLACK_AFTER[degree] && i < whiteCount - 1) {
+        keys.push({ midi: midi + 1, isBlack: true, afterWhiteIndex: i });
+      }
+    }
+    keys.forEach(k => { k.freq = 440 * Math.pow(2, (k.midi - 69) / 12); });
+    return keys;
+  }
+
+  function midiToFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+
+  /* ---------- Rendering ---------- */
+  const pianoEl = document.getElementById('piano');
+
+  function renderKeyboard() {
+    keyboard = buildKeyboard(settings.keysCount);
+    const whiteKeys = keyboard.filter(k => !k.isBlack);
+    const whiteCount = whiteKeys.length;
+    const whiteWidthPct = 100 / whiteCount;
+    const blackWidthPct = whiteWidthPct * 0.58;
+
+    pianoEl.innerHTML = '';
+
+    // white keys row
+    const whiteRow = document.createElement('div');
+    whiteRow.className = 'absolute inset-0 flex';
+    keyboard.forEach((k, idx) => {
+      if (k.isBlack) return;
+      const el = document.createElement('button');
+      el.className = 'key-white flex-1 relative rounded-b-md';
+      el.style.zIndex = '1';
+      el.dataset.index = keyboard.indexOf(k);
+      el.setAttribute('aria-label', 'клавіша ' + (k.whiteIndex + 1));
+      const ring = document.createElement('span');
+      ring.className = 'glow-ring';
+      el.appendChild(ring);
+      el.addEventListener('pointerdown', () => onKeyPress(keyboard.indexOf(k), el));
+      whiteRow.appendChild(el);
+    });
+    pianoEl.appendChild(whiteRow);
+
+    // black keys, absolutely positioned
+    keyboard.forEach((k) => {
+      if (!k.isBlack) return;
+      const el = document.createElement('button');
+      el.className = 'key-black absolute top-0 rounded-b-md';
+      el.style.height = '62%';
+      el.style.width = blackWidthPct + '%';
+      el.style.left = ((k.afterWhiteIndex + 1) * whiteWidthPct - blackWidthPct / 2) + '%';
+      el.style.zIndex = '2';
+      const idx = keyboard.indexOf(k);
+      el.dataset.index = idx;
+      el.setAttribute('aria-label', 'дієз клавіша');
+      const ring = document.createElement('span');
+      ring.className = 'glow-ring';
+      el.appendChild(ring);
+      el.addEventListener('pointerdown', () => onKeyPress(idx, el));
+      pianoEl.appendChild(el);
+    });
+  }
+
+  function keyEl(index) {
+    return pianoEl.querySelector('[data-index="' + index + '"]');
+  }
+
+  function litClass(isBlack) { return isBlack ? 'key-lit-black' : 'key-lit-white'; }
+  function okClass(isBlack)  { return isBlack ? 'key-ok-black'  : 'key-ok-white'; }
+  function badClass(isBlack) { return isBlack ? 'key-bad-black' : 'key-bad-white'; }
+
+  function flashKey(index, cls, duration = 350) {
+    const el = keyEl(index);
+    if (!el) return;
+    el.classList.add(cls, 'pressed');
+    const ring = el.querySelector('.glow-ring');
+    if (ring) { ring.classList.remove('fire'); void ring.offsetWidth; ring.classList.add('fire'); }
+    setTimeout(() => {
+      el.classList.remove(cls, 'pressed');
+    }, duration);
+  }
+
+  /* ---------- Status / staff note ---------- */
+  const statusMsg = document.getElementById('statusMsg');
+  const staffNote = document.getElementById('staffNote');
+
+  function setStatus(text) { statusMsg.textContent = text; }
+
+  function animateStaffNote(totalDurationMs) {
+    staffNote.style.transition = 'none';
+    staffNote.style.opacity = '1';
+    staffNote.style.left = '0%';
+    void staffNote.offsetWidth;
+    staffNote.style.transition = 'left ' + totalDurationMs + 'ms linear, opacity 300ms ease';
+    staffNote.style.left = '100%';
+    clearTimeout(animateStaffNote._t);
+    animateStaffNote._t = setTimeout(() => { staffNote.style.opacity = '0'; }, totalDurationMs);
+  }
+
+  /* ---------- Game logic ---------- */
+  function randomMelody() {
+    const arr = [];
+    for (let i = 0; i < settings.melodyLength; i++) {
+      arr.push(Math.floor(Math.random() * keyboard.length));
+    }
+    return arr;
+  }
+
+  async function playMelody() {
+    if (isPlaying) return;
+    isPlaying = true;
+    roundActive = false;
+    playerStep = 0;
+    setStatus('Слухай уважно…');
+    animateStaffNote(melody.length * settings.delayMs + 400);
+
+    for (let i = 0; i < melody.length; i++) {
+      const idx = melody[i];
+      const k = keyboard[idx];
+      flashKey(idx, litClass(k.isBlack), Math.min(settings.delayMs * 0.85, 500));
+      playTone(k.freq);
+      await sleep(settings.delayMs);
+    }
+
+    isPlaying = false;
+    roundActive = true;
+    setStatus('Тепер повтори мелодію на піаніно');
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function onKeyPress(index, el) {
+    const k = keyboard[index];
+    playTone(k.freq, 0.4);
+    flashKey(index, litClass(k.isBlack), 200);
+
+    if (!roundActive || isPlaying) return; // ignore clicks outside answer phase
+
+    const expected = melody[playerStep];
+    if (index === expected) {
+      flashKey(index, okClass(k.isBlack), 260);
+      playerStep++;
+      if (playerStep >= melody.length) {
+        roundActive = false;
+        score += melody.length * 10;
+        streak += 1;
+        updateScoreboard();
+        setStatus('Чудово! Мелодію повторено вірно ♪');
+        setTimeout(() => {
+          melody = randomMelody();
+          setStatus('Натисни «Слухати» для нової мелодії');
+        }, 300);
+      } else {
+        setStatus('Вірно — далі (' + (playerStep) + '/' + melody.length + ')');
+      }
+    } else {
+      flashKey(index, badClass(k.isBlack), 400);
+      roundActive = false;
+      streak = 0;
+      updateScoreboard();
+      setStatus('Не влучив. Слухай ще раз і спробуй знову');
+    }
+  }
+
+  function updateScoreboard() {
+    document.getElementById('scoreVal').textContent = score;
+    document.getElementById('streakVal').textContent = streak;
+  }
+
+  function startNewGame() {
+    score = 0; streak = 0;
+    updateScoreboard();
+    melody = randomMelody();
+    playerStep = 0;
+    roundActive = false;
+    isPlaying = false;
+    setStatus('Натисни «Слухати», щоб почати');
+  }
+
+  /* ---------- Settings persistence ---------- */
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem('luna-piano-settings');
+      if (!raw) return { ...DEFAULTS };
+      const parsed = JSON.parse(raw);
+      return { ...DEFAULTS, ...parsed };
+    } catch (e) { return { ...DEFAULTS }; }
+  }
+  function saveSettings() {
+    try { localStorage.setItem('luna-piano-settings', JSON.stringify(settings)); } catch (e) {}
+  }
+
+  /* ---------- Wiring ---------- */
+  document.getElementById('playBtn').addEventListener('click', () => {
+    ctx(); // unlock audio on user gesture
+    if (isPlaying) return;
+    playMelody();
+  });
+
+  document.getElementById('repeatBtn').addEventListener('click', () => {
+    ctx();
+    if (isPlaying) return;
+    playMelody();
+  });
+
+  document.getElementById('newGameBtn').addEventListener('click', () => {
+    startNewGame();
+  });
+
+  const overlay = document.getElementById('settingsOverlay');
+  const lenRange = document.getElementById('lenRange');
+  const keysRange = document.getElementById('keysRange');
+  const delayRange = document.getElementById('delayRange');
+  const lenVal = document.getElementById('lenVal');
+  const keysVal = document.getElementById('keysVal');
+  const delayVal = document.getElementById('delayVal');
+
+  function syncSettingsUI() {
+    lenRange.value = settings.melodyLength;
+    keysRange.value = settings.keysCount;
+    delayRange.value = settings.delayMs;
+    lenVal.textContent = settings.melodyLength;
+    keysVal.textContent = settings.keysCount;
+    delayVal.textContent = settings.delayMs + ' мс';
+  }
+
+  lenRange.addEventListener('input', () => { lenVal.textContent = lenRange.value; });
+  keysRange.addEventListener('input', () => { keysVal.textContent = keysRange.value; });
+  delayRange.addEventListener('input', () => { delayVal.textContent = delayRange.value + ' мс'; });
+
+  document.getElementById('settingsBtn').addEventListener('click', () => {
+    syncSettingsUI();
+    overlay.classList.remove('hidden');
+    overlay.classList.add('flex');
+  });
+  document.getElementById('closeSettingsBtn').addEventListener('click', () => {
+    overlay.classList.add('hidden');
+    overlay.classList.remove('flex');
+  });
+  document.getElementById('applySettingsBtn').addEventListener('click', () => {
+    settings.melodyLength = parseInt(lenRange.value, 10);
+    settings.keysCount = parseInt(keysRange.value, 10);
+    settings.delayMs = parseInt(delayRange.value, 10);
+    saveSettings();
+    overlay.classList.add('hidden');
+    overlay.classList.remove('flex');
+    renderKeyboard();
+    startNewGame();
+  });
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.classList.add('hidden');
+      overlay.classList.remove('flex');
+    }
+  });
+
+  // keyboard accessibility: allow Enter/Space activation is native for <button>, nothing extra needed.
+
+  /* ---------- Init ---------- */
+  renderKeyboard();
+  startNewGame();
+})();
+</script>
+</body>
+</html>
