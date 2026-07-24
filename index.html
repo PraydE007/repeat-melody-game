@@ -241,7 +241,7 @@
 
   let keyboard = [];       // [{midi, freq, isBlack, whiteIndex}]
   let melody = [];         // array of key indices into `keyboard`
-  let playerStep = 0;
+  let playerInput = [];    // notes the player has entered so far this round
   let isPlaying = false;   // true while melody is being played back (input locked)
   let roundActive = false; // true once melody finished playing and player may answer
   let score = 0;
@@ -361,8 +361,6 @@
   }
 
   function litClass(isBlack) { return isBlack ? 'key-lit-black' : 'key-lit-white'; }
-  function okClass(isBlack)  { return isBlack ? 'key-ok-black'  : 'key-ok-white'; }
-  function badClass(isBlack) { return isBlack ? 'key-bad-black' : 'key-bad-white'; }
 
   function flashKey(index, cls, duration = 350) {
     const el = keyEl(index);
@@ -405,14 +403,13 @@
     if (isPlaying) return;
     isPlaying = true;
     roundActive = false;
-    playerStep = 0;
+    playerInput = [];
     setStatus('Слухай уважно…');
     animateStaffNote(melody.length * settings.delayMs + 400);
 
     for (let i = 0; i < melody.length; i++) {
       const idx = melody[i];
       const k = keyboard[idx];
-      // flashKey(idx, litClass(k.isBlack), Math.min(settings.delayMs * 0.85, 500));
       playTone(k.freq);
       await sleep(settings.delayMs);
     }
@@ -424,36 +421,46 @@
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+	const inputQueue = [];
+
+	function addNote(note) {
+
+		inputQueue.push(note);
+
+		while (inputQueue.length > melody.length)
+			inputQueue.shift();
+
+		return inputQueue.every((v, i) => v === melody[i]);
+	}
+
   function onKeyPress(index, el) {
     const k = keyboard[index];
     playTone(k.freq, 0.4);
-    flashKey(index, litClass(k.isBlack), 200);
+    flashKey(index, litClass(k.isBlack), 200); // neutral feedback only — no hint about correctness
 
-    if (!roundActive || isPlaying) return; // ignore clicks outside answer phase
+    if (!roundActive || isPlaying)
+		return;
 
-    const expected = melody[playerStep];
-    if (index === expected) {
-      flashKey(index, litClass(k.isBlack), 260);
-      playerStep++;
-      if (playerStep >= melody.length) {
-        roundActive = false;
-        score += melody.length * 10;
-        streak += 1;
-        updateScoreboard();
-        setStatus('Чудово! Мелодію повторено вірно ♪');
-        setTimeout(() => {
-          melody = randomMelody();
-          setStatus('Натисни «Слухати» для нової мелодії');
-        }, 300);
-      } else {
-        setStatus('Вірно — далі (' + (playerStep) + '/' + melody.length + ')');
-      }
+	if (addNote(index)) {
+		roundActive = false;
+		revealResult(true);
+	}
+  }
+
+  function revealResult(isCorrect) {
+    if (isCorrect) {
+      score += melody.length * 10;
+      streak += 1;
+      updateScoreboard();
+      setStatus('Чудово! Мелодію повторено вірно ♪');
+      setTimeout(() => {
+        melody = randomMelody();
+        setStatus('Натисни «Слухати» для нової мелодії');
+      }, melody.length * 90 + 400);
     } else {
-      flashKey(index, litClass(k.isBlack), 400);
-      roundActive = false;
       streak = 0;
       updateScoreboard();
-      setStatus('Не влучив. Слухай ще раз і спробуй знову');
+      setStatus('Не вірно.');
     }
   }
 
@@ -466,7 +473,7 @@
     score = 0; streak = 0;
     updateScoreboard();
     melody = randomMelody();
-    playerStep = 0;
+    playerInput = [];
     roundActive = false;
     isPlaying = false;
     setStatus('Натисни «Слухати», щоб почати');
