@@ -433,7 +433,7 @@
 
     const expected = melody[playerStep];
     if (index === expected) {
-      flashKey(index, okClass(k.isBlack), 260);
+      flashKey(index, litClass(k.isBlack), 260);
       playerStep++;
       if (playerStep >= melody.length) {
         roundActive = false;
@@ -449,7 +449,7 @@
         setStatus('Вірно — далі (' + (playerStep) + '/' + melody.length + ')');
       }
     } else {
-      flashKey(index, badClass(k.isBlack), 400);
+      flashKey(index, litClass(k.isBlack), 400);
       roundActive = false;
       streak = 0;
       updateScoreboard();
